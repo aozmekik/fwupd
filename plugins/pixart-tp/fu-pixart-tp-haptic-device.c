@@ -27,6 +27,8 @@ G_DEFINE_TYPE(FuPixartTpHapticDevice, fu_pixart_tp_haptic_device, FU_TYPE_DEVICE
 
 #define FU_PIXART_TP_TF_FRAME_SIZE_FEATURE_REPORT_LEN 64
 
+#define FU_PIXART_TP_TF_WRITE_CHUNK_SZ 32
+
 static void
 fu_pixart_tp_haptic_device_to_string(FuDevice *device, guint idt, GString *str)
 {
@@ -564,6 +566,16 @@ fu_pixart_tp_haptic_device_tf_write_firmware(FuPixartTpHapticDevice *self,
 {
 	g_autoptr(FuChunkArray) chunks = NULL;
 
+	/* the packet index and total are only 16 bits */
+	if (g_bytes_get_size(blob) > (gsize)G_MAXUINT16 * FU_PIXART_TP_TF_WRITE_CHUNK_SZ) {
+		g_set_error(error,
+			    FWUPD_ERROR,
+			    FWUPD_ERROR_INVALID_FILE,
+			    "firmware blob too large for the TF protocol: 0x%x bytes",
+			    (guint)g_bytes_get_size(blob));
+		return FALSE;
+	}
+
 	/* progress */
 	fu_progress_set_id(progress, G_STRLOC);
 	fu_progress_add_step(progress, FWUPD_STATUS_DEVICE_BUSY, 0, "disable-touch");
@@ -609,7 +621,7 @@ fu_pixart_tp_haptic_device_tf_write_firmware(FuPixartTpHapticDevice *self,
 	chunks = fu_chunk_array_new_from_bytes(blob,
 					       FU_CHUNK_ADDR_OFFSET_NONE,
 					       FU_CHUNK_PAGESZ_NONE,
-					       32,
+					       FU_PIXART_TP_TF_WRITE_CHUNK_SZ,
 					       error);
 	if (chunks == NULL)
 		return FALSE;
